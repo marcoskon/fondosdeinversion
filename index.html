@@ -426,21 +426,8 @@ function shortSg(n){
     .replace(/\s+/g,' ').trim().replace(/\.+$/,'');
 }
 
-// ── Build aggregations ────────────────────────────────────────────────────
-const catMap={};
-let totalPat=0;
-RAW_DATA.forEach(r=>{
-  if(!r.pat) return;
-  totalPat+=r.pat;
-  if(!catMap[r.cat]) catMap[r.cat]={pat:0,count:0,name:r.cat,funds:[]};
-  catMap[r.cat].pat+=r.pat;
-  catMap[r.cat].count++;
-  catMap[r.cat].funds.push(r);
-});
-const catArr=Object.values(catMap).sort((a,b)=>b.pat-a.pat);
-catArr.forEach((c,i)=>{c.color=PALETTE[i%PALETTE.length];c.ms=c.pat/totalPat*100;});
-const catColorMap={};
-catArr.forEach(c=>catColorMap[c.name]=c.color);
+// ── Aggregations (populated in buildAggregations() after data loads) ─────────
+let catMap={}, totalPat=0, catArr=[], catColorMap={}, cmpIndex=[];
 
 // ── KPIs ─────────────────────────────────────────────────────────────────
 function renderKPIs(){
@@ -875,23 +862,7 @@ const CMP_PAL=['#00d4ff','#f59e0b','#10b981','#ef4444','#7c3aed',
   '#84cc16','#e11d48','#fb923c','#06b6d4','#a855f7'];
 let cmpSel=[],cmpMode='ytd',cmpColIdx=0;
 
-const cmpIndex=(()=>{
-  const map={};
-  RAW_DATA.filter(r=>r.pat>0).forEach(r=>{
-    const base=getBaseName(r.f),key=base+'||'+r.cat;
-    if(!map[key]) map[key]={key,name:base,cat:r.cat,pat:0,
-      vd_s:0,vd_n:0,vm_s:0,vm_n:0,vy_s:0,vy_n:0,v12_s:0,v12_n:0};
-    const g=map[key],w=r.pat;
-    g.pat+=w;
-    if(r.vd!=null){g.vd_s+=r.vd*w;g.vd_n+=w;}
-    if(r.vm!=null){g.vm_s+=r.vm*w;g.vm_n+=w;}
-    if(r.vy!=null){g.vy_s+=r.vy*w;g.vy_n+=w;}
-    if(r.v12!=null){g.v12_s+=r.v12*w;g.v12_n+=w;}
-  });
-  return Object.values(map).map(g=>({key:g.key,name:g.name,cat:g.cat,pat:g.pat,
-    vd:g.vd_n?g.vd_s/g.vd_n:null,vm:g.vm_n?g.vm_s/g.vm_n:null,
-    vy:g.vy_n?g.vy_s/g.vy_n:null,v12:g.v12_n?g.v12_s/g.v12_n:null}));
-})();
+
 
 function cmpInitCats(){
   const sel=document.getElementById('cmpCat');
@@ -1141,8 +1112,55 @@ function switchTab(name,btn){
   if(name==='compare') cmpDrawChart();
 }
 
+
+// ── Build all aggregations (runs after RAW_DATA is loaded) ───────────────────
+function buildAggregations() {
+  // Reset
+  Object.keys(catMap).forEach(k => delete catMap[k]);
+  totalPat = 0;
+
+  RAW_DATA.forEach(r => {
+    if (!r.pat) return;
+    totalPat += r.pat;
+    if (!catMap[r.cat]) catMap[r.cat] = {pat:0, count:0, name:r.cat, funds:[]};
+    catMap[r.cat].pat   += r.pat;
+    catMap[r.cat].count++;
+    catMap[r.cat].funds.push(r);
+  });
+
+  catArr.length = 0;
+  Object.values(catMap).sort((a,b) => b.pat-a.pat).forEach(c => catArr.push(c));
+  catArr.forEach((c,i) => { c.color = PALETTE[i % PALETTE.length]; c.ms = c.pat/totalPat*100; });
+
+  Object.keys(catColorMap).forEach(k => delete catColorMap[k]);
+  catArr.forEach(c => catColorMap[c.name] = c.color);
+
+  // Rebuild cmpIndex
+  const map = {};
+  RAW_DATA.filter(r => r.pat > 0).forEach(r => {
+    const base = getBaseName(r.f), key = base + '||' + r.cat;
+    if (!map[key]) map[key] = {key, name:base, cat:r.cat, pat:0,
+      vd_s:0,vd_n:0, vm_s:0,vm_n:0, vy_s:0,vy_n:0, v12_s:0,v12_n:0};
+    const g = map[key], w = r.pat;
+    g.pat += w;
+    if (r.vd  != null) { g.vd_s  += r.vd *w; g.vd_n  += w; }
+    if (r.vm  != null) { g.vm_s  += r.vm *w; g.vm_n  += w; }
+    if (r.vy  != null) { g.vy_s  += r.vy *w; g.vy_n  += w; }
+    if (r.v12 != null) { g.v12_s += r.v12*w; g.v12_n += w; }
+  });
+  cmpIndex.length = 0;
+  Object.values(map).map(g => ({
+    key:g.key, name:g.name, cat:g.cat, pat:g.pat,
+    vd: g.vd_n  ? g.vd_s /g.vd_n  : null,
+    vm: g.vm_n  ? g.vm_s /g.vm_n  : null,
+    vy: g.vy_n  ? g.vy_s /g.vy_n  : null,
+    v12:g.v12_n ? g.v12_s/g.v12_n : null,
+  })).forEach(f => cmpIndex.push(f));
+}
+
 // ── Init (called after data loads) ───────────────────────────────────────────
 function init() {
+  buildAggregations();
   renderKPIs();
   renderTopFunds();
   renderDonut();
