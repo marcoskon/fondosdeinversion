@@ -582,7 +582,7 @@ function renderDonut(){
 
 function openDonutModal(slice){
   let modal=document.getElementById('donutModal');
-  const funds=RAW_DATA.filter(r=>r.cat===slice.name&&r.pat>=1)
+  const funds=RAW_DATA.filter(r=>r.cat===slice.name&&r.pat>0)
     .sort((a,b)=>b.pat-a.pat).slice(0,15);
   const catTotal=(catMap[slice.name]||{pat:slice.pat}).pat;
   const maxP=funds[0]?funds[0].pat:1;
@@ -646,7 +646,7 @@ function closeDonutModal(){
 // ── Top 20 Funds ─────────────────────────────────────────────────────────
 function renderTopFunds(){
   const grouped={};
-  RAW_DATA.filter(r=>r.pat>=1).forEach(r=>{
+  RAW_DATA.filter(r=>r.pat>0&&(r.ty==null||Math.abs(r.ty)<=400)).forEach(r=>{
     const base=getBaseName(r.f),key=base+'||'+r.cat;
     if(!grouped[key]) grouped[key]={f:base,cat:r.cat,pat:0,ms:0,
       vd_s:0,vd_n:0,vm_s:0,vm_n:0,vy_s:0,vy_n:0,cls:0};
@@ -683,7 +683,7 @@ function renderTopFunds(){
 function renderSgTable(){
   const map={};
   RAW_DATA.forEach(r=>{
-    if(!r.sg||!r.pat||r.pat<1) return;
+    if(!r.sg||!r.pat||r.ty!=null&&Math.abs(r.ty)>400) return;
     if(!map[r.sg]) map[r.sg]={name:r.sg,pat:0,count:0,cats:new Set(),catPat:{}};
     const g=map[r.sg];
     g.pat+=r.pat; g.count++; g.cats.add(r.cat);
@@ -797,7 +797,7 @@ function getFiltered(){
   const cat=document.getElementById('filterCat').value;
   const mon=document.getElementById('filterMon').value;
   const srch=document.getElementById('searchFund').value.toLowerCase();
-  let data=RAW_DATA.filter(r=>r.pat>=1);
+  let data=RAW_DATA.filter(r=>r.pat>0 && (r.ty==null||Math.abs(r.ty)<=400));
   if(cat) data=data.filter(r=>r.cat===cat);
   if(mon) data=data.filter(r=>r.mon===mon);
   if(srch) data=data.filter(r=>r.f.toLowerCase().includes(srch));
