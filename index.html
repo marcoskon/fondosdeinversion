@@ -292,12 +292,12 @@ option{background:var(--surface);}
           </div>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" style="overflow:visible;">
         <div class="panel-header">
           <span class="panel-title">FCIs seleccionados</span>
           <span class="panel-badge" id="cmpCount">0 fondos</span>
         </div>
-        <div id="cmpList" style="padding:.75rem 1rem;min-height:60px;max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+        <div id="cmpList" style="padding:.75rem 1rem;display:flex;flex-direction:column;gap:6px;">
           <div id="cmpEmpty" style="color:var(--muted);font-size:12px;padding:.5rem 0;">Buscá y agrega fondos para comparar</div>
         </div>
         <div style="padding:.75rem 1rem;border-top:1px solid var(--border);">
@@ -306,7 +306,7 @@ option{background:var(--surface);}
             font-size:11px;width:100%;">Limpiar selección</button>
         </div>
       </div>
-      <div class="panel" id="cmpStatsPanel" style="display:none;">
+      <div class="panel" id="cmpStatsPanel" style="display:none;overflow:visible;">
         <div class="panel-header"><span class="panel-title">Resumen comparativo</span></div>
         <div id="cmpStats" style="padding:1rem;display:flex;flex-direction:column;gap:8px;font-size:12px;max-height:320px;overflow-y:auto;"></div>
       </div>
@@ -954,38 +954,119 @@ function cmpRemove(idx){cmpSel.splice(idx,1);cmpRenderList();cmpDrawChart();}
 function cmpClearAll(){cmpSel=[];cmpColIdx=0;cmpRenderList();cmpDrawChart();}
 
 function cmpRenderList(){
-  const listEl=document.getElementById('cmpList');
-  const emptyEl=document.getElementById('cmpEmpty');
-  document.getElementById('cmpCount').textContent=cmpSel.length+' fondo'+(cmpSel.length!==1?'s':'');
-  const statsP=document.getElementById('cmpStatsPanel');
-  if(!cmpSel.length){
-    listEl.innerHTML='';listEl.appendChild(emptyEl);emptyEl.style.display='';
-    statsP.style.display='none';return;
+  const listEl  = document.getElementById('cmpList');
+  const emptyEl = document.getElementById('cmpEmpty');
+  const statsP  = document.getElementById('cmpStatsPanel');
+  const statsEl = document.getElementById('cmpStats');
+  document.getElementById('cmpCount').textContent =
+    cmpSel.length + ' fondo' + (cmpSel.length !== 1 ? 's' : '');
+
+  // Clear list
+  while (listEl.firstChild && listEl.firstChild !== emptyEl)
+    listEl.removeChild(listEl.firstChild);
+
+  if (!cmpSel.length) {
+    if (!listEl.contains(emptyEl)) listEl.appendChild(emptyEl);
+    emptyEl.style.display = '';
+    statsP.style.display  = 'none';
+    return;
   }
-  emptyEl.style.display='none';
-  listEl.innerHTML=cmpSel.map((s,i)=>{
-    const cat=shortCat(s.cat),vyStr=s.vy!=null?((s.vy>=0?'+':'')+s.vy.toFixed(1)+'% YTD'):'—';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);">'
-      +'<div style="width:10px;height:10px;border-radius:2px;background:'+s.color+';flex-shrink:0;"></div>'
-      +'<div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+s.name+'">'+s.name+'</div>'
-      +'<div style="font-size:9px;color:'+(catColorMap[s.cat]||'var(--muted)')+';">'+cat+'</div></div>'
-      +'<span style="font-family:var(--mono);font-size:11px;color:'+(s.vy>=0?'var(--green)':'var(--red)')+';">'+vyStr+'</span>'
-      +'<button onclick="cmpRemove('+i+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;">&times;</button>'
-      +'</div>';
-  }).join('');
-  statsP.style.display='';
-  document.getElementById('cmpStats').innerHTML=
-    [...cmpSel].sort((a,b)=>(b.vy||0)-(a.vy||0)).map(s=>{
-      const mk=(v,lbl)=>'<div style="text-align:center;background:var(--surface2);border-radius:3px;padding:4px;">'
-        +'<div style="font-size:9px;color:var(--muted);margin-bottom:2px;">'+lbl+'</div>'
-        +'<div style="font-size:11px;font-family:var(--mono);color:'+(v!=null?(v>=0?'var(--green)':'var(--red)'):'var(--muted)')+';">'
-        +(v!=null?(v>=0?'+':'')+v.toFixed(1)+'%':'—')+'</div></div>';
-      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">'
-        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">'
-        +'<div style="width:8px;height:8px;border-radius:2px;background:'+s.color+';flex-shrink:0;"></div>'
-        +'<span style="font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+s.name+'</span></div>'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">'+mk(s.vy,'YTD')+mk(s.vm,'MTD')+mk(s.v12,'12M')+'</div></div>';
-    }).join('');
+
+  emptyEl.style.display = 'none';
+  if (listEl.contains(emptyEl)) listEl.removeChild(emptyEl);
+
+  // Build each fund row as real DOM node (avoids innerHTML parsing issues)
+  // Clear previous fund rows
+  while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+
+  cmpSel.forEach((s, i) => {
+    const cat    = shortCat(s.cat);
+    const vyVal  = s.vy != null ? s.vy : null;
+    const vyStr  = vyVal != null ? ((vyVal >= 0 ? '+' : '') + vyVal.toFixed(1) + '% YTD') : '—';
+    const vyCol  = vyVal != null ? (vyVal >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
+    const catCol = catColorMap[s.cat] || 'var(--muted)';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;' +
+      'border-radius:5px;background:var(--surface2);border:1px solid var(--border);';
+
+    const dot = document.createElement('div');
+    dot.style.cssText = 'width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + s.color + ';';
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
+
+    const nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-size:11px;font-weight:600;color:var(--text);' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    nameEl.title       = s.name;
+    nameEl.textContent = s.name;
+
+    const catEl = document.createElement('div');
+    catEl.style.cssText = 'font-size:9px;color:' + catCol + ';';
+    catEl.textContent   = cat;
+
+    info.appendChild(nameEl);
+    info.appendChild(catEl);
+
+    const vyEl = document.createElement('span');
+    vyEl.style.cssText = 'font-family:var(--mono);font-size:11px;white-space:nowrap;color:' + vyCol + ';';
+    vyEl.textContent   = vyStr;
+
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:none;border:none;color:var(--muted);' +
+      'cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;';
+    btn.textContent = '×';
+    btn.addEventListener('click', (function(idx){ return function(){ cmpRemove(idx); }; })(i));
+
+    row.appendChild(dot);
+    row.appendChild(info);
+    row.appendChild(vyEl);
+    row.appendChild(btn);
+    listEl.appendChild(row);
+  });
+
+  // Resumen comparativo
+  statsP.style.display = '';
+  while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+
+  [...cmpSel].sort((a,b) => (b.vy||0) - (a.vy||0)).forEach(s => {
+    const mk = (v, lbl) => {
+      const d = document.createElement('div');
+      d.style.cssText = 'text-align:center;background:var(--surface2);border-radius:3px;padding:4px;';
+      const lblEl = document.createElement('div');
+      lblEl.style.cssText = 'font-size:9px;color:var(--muted);margin-bottom:2px;';
+      lblEl.textContent = lbl;
+      const valEl = document.createElement('div');
+      valEl.style.cssText = 'font-size:11px;font-family:var(--mono);color:' +
+        (v != null ? (v >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)') + ';';
+      valEl.textContent = v != null ? ((v >= 0 ? '+' : '') + v.toFixed(1) + '%') : '—';
+      d.appendChild(lblEl); d.appendChild(valEl);
+      return d;
+    };
+
+    const block = document.createElement('div');
+    block.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:5px;';
+    const hdot = document.createElement('div');
+    hdot.style.cssText = 'width:8px;height:8px;border-radius:2px;background:' + s.color + ';flex-shrink:0;';
+    const hname = document.createElement('span');
+    hname.style.cssText = 'font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    hname.textContent = s.name;
+    header.appendChild(hdot); header.appendChild(hname);
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;';
+    grid.appendChild(mk(s.vy,'YTD'));
+    grid.appendChild(mk(s.vm,'MTD'));
+    grid.appendChild(mk(s.v12,'12M'));
+
+    block.appendChild(header);
+    block.appendChild(grid);
+    statsEl.appendChild(block);
+  });
 }
 
 function cmpSetMode(m){
