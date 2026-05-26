@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+
+# Excel en cualquier lado MENOS en uploads/
+*.xlsx
+*.xls
+!uploads/*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
