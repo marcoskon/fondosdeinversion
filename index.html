@@ -180,7 +180,7 @@ option{background:var(--surface);}
     </div>
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Top 20 Fondos por Patrimonio</span>
+        <span class="panel-title">Top 10 Fondos por Patrimonio</span>
         <span class="panel-badge">ARS Millones — agrupado por FCI</span>
       </div>
       <div class="table-scroll">
@@ -658,7 +658,7 @@ function renderTopFunds(){
   });
   const sorted=Object.values(grouped).map(g=>({...g,
     vd:g.vd_n?g.vd_s/g.vd_n:null,vm:g.vm_n?g.vm_s/g.vm_n:null,vy:g.vy_n?g.vy_s/g.vy_n:null
-  })).sort((a,b)=>b.pat-a.pat).slice(0,20);
+  })).sort((a,b)=>b.pat-a.pat).slice(0,10);
   const maxP=sorted[0].pat;
   document.getElementById('topFundsTbody').innerHTML=sorted.map((r,i)=>{
     const col=catColorMap[r.cat]||'#64748b';
