@@ -1,0 +1,69 @@
+name: Actualizar datos CAFCI
+
+on:
+  push:
+    paths:
+      - 'uploads/*.xlsx'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python y dependencias
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar pandas y openpyxl
+        run: pip install pandas openpyxl
+
+      - name: Procesar Excel → JSON
+        run: |
+          EXCEL=$(ls uploads/*.xlsx | head -1)
+          echo "Procesando: $EXCEL"
+          python scripts/process_excel.py "$EXCEL"
+
+      - name: Borrar el Excel subido
+        run: rm -f uploads/*.xlsx
+
+      - name: Guardar cambios en el repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/cafci_data.json
+          git rm --cached uploads/*.xlsx 2>/dev/null || true
+          git commit -m "Datos actualizados $(date +'%d/%m/%Y')"
+          git push
+
+  deploy:
+    needs: process
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
