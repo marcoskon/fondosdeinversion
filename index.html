@@ -112,11 +112,13 @@ option{background:var(--surface);}
 /* Compare tab */
 .cmp-layout{display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start;}
 @media(max-width:900px){.cmp-layout{grid-template-columns:1fr;}}
-.cmp-dropdown{display:none;position:absolute;top:100%;left:0;right:0;z-index:80;
-  background:var(--surface);border:1px solid var(--border);border-radius:4px;
-  max-height:220px;overflow-y:auto;margin-top:2px;box-shadow:0 8px 20px rgba(0,0,0,.4);}
-.cmp-dropdown-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);}
-.cmp-dropdown-item:hover{background:rgba(0,212,255,.05);}
+.cmp-dropdown{display:none;position:fixed;z-index:9000;
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  max-height:260px;overflow-y:auto;
+  box-shadow:0 12px 32px rgba(0,0,0,.6);
+  min-width:260px;max-width:90vw;}
+.cmp-dropdown-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);}
+.cmp-dropdown-item:hover{background:rgba(0,212,255,.07);}
 </style>
 </head>
 <body>
@@ -871,6 +873,44 @@ function cmpInitCats(){
   catArr.forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=shortCat(c.name);sel.appendChild(o);});
 }
 
+function cmpPositionDropdown(){
+  const input = document.getElementById('cmpSearch');
+  const dd    = document.getElementById('cmpDropdown');
+  const rect  = input.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const ddH = Math.min(260, dd.scrollHeight || 260);
+  dd.style.width = rect.width + 'px';
+  dd.style.left  = rect.left + 'px';
+  if (spaceBelow >= ddH || spaceBelow >= spaceAbove) {
+    // open downward
+    dd.style.top    = (rect.bottom + 4) + 'px';
+    dd.style.bottom = 'auto';
+  } else {
+    // open upward
+    dd.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    dd.style.top    = 'auto';
+  }
+}
+
+function cmpPositionDropdown(){
+  const input=document.getElementById('cmpSearch');
+  const dd=document.getElementById('cmpDropdown');
+  if(!input||!dd) return;
+  const rect=input.getBoundingClientRect();
+  const spaceBelow=window.innerHeight-rect.bottom;
+  const spaceAbove=rect.top;
+  const ddH=Math.min(260,dd.scrollHeight||260);
+  dd.style.width=rect.width+'px';
+  dd.style.left=rect.left+'px';
+  if(spaceBelow>=ddH||spaceBelow>=spaceAbove){
+    dd.style.top=(rect.bottom+4)+'px';
+    dd.style.bottom='auto';
+  } else {
+    dd.style.bottom=(window.innerHeight-rect.top+4)+'px';
+    dd.style.top='auto';
+  }
+}
 function cmpRefreshSearch(){
   const cat=document.getElementById('cmpCat').value;
   const q=document.getElementById('cmpSearch').value.trim().toLowerCase();
@@ -881,6 +921,7 @@ function cmpRefreshSearch(){
   if(q) res=res.filter(f=>f.name.toLowerCase().includes(q));
   res=res.sort((a,b)=>b.pat-a.pat).slice(0,40);
   if(!res.length){dd.style.display='none';return;}
+  dd.style.display='none'; // reset before measuring
   dd.innerHTML=res.map(f=>{
     const col=catColorMap[f.cat]||'#64748b';
     const already=cmpSel.some(s=>s.key===f.key);
@@ -895,6 +936,7 @@ function cmpRefreshSearch(){
       +'</div></div>';
   }).join('');
   dd.style.display='block';
+  cmpPositionDropdown();
 }
 
 function cmpAdd(key){
@@ -1095,12 +1137,22 @@ function cmpDrawChart(){
   });
 }
 
+window.addEventListener('resize',()=>{const dd=document.getElementById('cmpDropdown');if(dd&&dd.style.display==='block')cmpPositionDropdown();});
+window.addEventListener('scroll',()=>{const dd=document.getElementById('cmpDropdown');if(dd&&dd.style.display==='block')cmpPositionDropdown();},true);
 document.addEventListener('click',e=>{
   if(!e.target.closest('#cmpSearch')&&!e.target.closest('#cmpDropdown')){
     const dd=document.getElementById('cmpDropdown');
     if(dd) dd.style.display='none';
   }
 });
+window.addEventListener('resize', ()=>{
+  const dd=document.getElementById('cmpDropdown');
+  if(dd&&dd.style.display==='block') cmpPositionDropdown();
+});
+window.addEventListener('scroll', ()=>{
+  const dd=document.getElementById('cmpDropdown');
+  if(dd&&dd.style.display==='block') cmpPositionDropdown();
+}, true);
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 function switchTab(name,btn){
