@@ -25,8 +25,9 @@ def get_base_name(name: str) -> str:
     return re.sub(r'\s*[-–]\s*Clase\b[\s\S]*$', '', name, flags=re.IGNORECASE).strip()
 
 def annualize(pct, days):
-    if pct is None: return None
-    try: return round(((1 + pct/100)**(365/days) - 1)*100, 2)
+    """TNA sin capitalización: (rendimiento% / días) × 365"""
+    if pct is None or not days: return None
+    try: return round((pct / days) * 365, 2)
     except: return None
 
 def safe_float(v):
@@ -98,10 +99,19 @@ def process(excel_path: str):
             'v12': v12,
             'tm':  None,  # calculado en main() con días reales
             'ty':  None,  # calculado en main() con días reales
+            't12': None,  # TNA 12M, calculado en main()
             'sg':  safe_str(row[23]),
         })
 
-    return records
+    # Extraer la fecha real del VCP del primer registro válido (col 4 = fecha hábil)
+    vcp_date_str = None
+    for _, row in data[data[1].notna()].iterrows():
+        raw_fecha = safe_str(row[4])
+        if raw_fecha and raw_fecha != 'None':
+            vcp_date_str = raw_fecha  # formato DD/MM/YY o DD/MM/YYYY
+            break
+
+    return records, vcp_date_str
 
 # ── Actualizar historial de VCP ────────────────────────────────────────────────
 
@@ -179,7 +189,7 @@ def main():
         sys.exit(1)
 
     print(f"Procesando: {excel_path}")
-    records = process(excel_path)
+    records, vcp_date_raw = process(excel_path)
     print(f"Fondos activos: {len(records)}")
 
     # Detectar fecha
@@ -195,50 +205,66 @@ def main():
         file_date     = today.strftime('%d/%m/%Y')
         file_date_obj = today.date()
 
-    # Calcular días reales para anualizacion
-    import calendar as _cal
+    # Leer fechas de referencia directamente del header del Excel
+    # Fila 8 (índice 8) contiene las fechas exactas que usa CAFCI
+    # Col 9 = MTD (ej: 30/04/26), Col 10 = YTD (ej: 30/12/25), Col 11 = 12M
     from datetime import date as _date
-    ytd_start    = _date(file_date_obj.year - 1, 12, 31)
-    days_ytd     = (file_date_obj - ytd_start).days
+    def parse_cafci_date(val):
+        """Parsea fecha DD/MM/YY del header del Excel"""
+        try:
+            s = str(val).strip()
+            d, m, y = s.split('/')
+            year = 2000 + int(y) if len(y) == 2 else int(y)
+            return _date(year, int(m), int(d))
+        except:
+            return None
 
-    prev_month      = file_date_obj.month - 1 if file_date_obj.month > 1 else 12
-    prev_month_year = file_date_obj.year if file_date_obj.month > 1 else file_date_obj.year - 1
-    last_day_prev   = _cal.monthrange(prev_month_year, prev_month)[1]
-    mtd_start       = _date(prev_month_year, prev_month, last_day_prev)
-    days_mtd        = (file_date_obj - mtd_start).days
+    # ── Leer fechas de referencia desde el propio Excel ──────────────────────
+    # Row 8 tiene las fechas base de comparación (MTD, YTD, 12M)
+    # Col 4 de los fondos tiene la fecha real del VCP (día hábil anterior)
+    df_main = pd.read_excel(excel_path, header=None)
+    header_row = df_main.iloc[8]
 
-    print(f"Días YTD: {days_ytd} (desde {ytd_start})")
-    print(f"Días MTD: {days_mtd} (desde {mtd_start})")
+    def parse_cafci_date(val):
+        if val is None or (isinstance(val, float) and pd.isna(val)): return None
+        try:
+            s = str(val).strip()
+            parts = s.replace('/', '-').split('-')
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            if y < 100: y += 2000
+            from datetime import date as _date
+            return _date(y, m, d)
+        except: return None
 
-    # Calcular TNA con días reales
-    for r in records:
-        r['tm'] = annualize(r['vm'], days_mtd)
-        r['ty'] = annualize(r['vy'], days_ytd)
+    # Fecha del VCP: columna 4 del primer registro de fondo
+    vcp_date = None
+    for _, row in df_main.iloc[10:].iterrows():
+        if pd.notna(row[1]):
+            vcp_date = parse_cafci_date(row[4])
+            break
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    out_dir    = os.path.join(script_dir, '..', 'data')
-    os.makedirs(out_dir, exist_ok=True)
+    # Fechas base de comparación del header
+    ref_mtd = parse_cafci_date(header_row[9])   # último día hábil mes anterior
+    ref_ytd = parse_cafci_date(header_row[10])  # último día hábil dic año anterior
+    ref_12m = parse_cafci_date(header_row[11])  # mismo período año anterior
 
-    # ── 1. Guardar cafci_data.json (métricas del día) ──────────────────────
-    # Quitar campo vcp del output principal (solo va al historial)
-    records_out = [{k: v for k, v in r.items() if k != 'vcp'} for r in records]
+    # Fallback: calcular desde la fecha del archivo
+    import calendar as _cal
+    from datetime import date as _date2
+    base_date = vcp_date or file_date_obj
 
-    data_out = {
-        'fecha':        file_date,
-        'generado':     datetime.now().isoformat(timespec='seconds'),
-        'total_fondos': len(records_out),
-        'fondos':       records_out,
-    }
-    data_path = os.path.join(out_dir, 'cafci_data.json')
-    with open(data_path, 'w', encoding='utf-8') as f:
-        json.dump(data_out, f, ensure_ascii=False, separators=(',', ':'))
-    print(f"Datos del día: {data_path} ({os.path.getsize(data_path)/1024:.0f} KB)")
+    if not ref_ytd:
+        ref_ytd = _date2(base_date.year - 1, 12, 31)
+    if not ref_mtd:
+        pm = base_date.month - 1 if base_date.month > 1 else 12
+        py = base_date.year if base_date.month > 1 else base_date.year - 1
+        ref_mtd = _date2(py, pm, _cal.monthrange(py, pm)[1])
 
-    # ── 2. Actualizar cafci_history.json (serie histórica) ─────────────────
-    history_path = os.path.join(out_dir, 'cafci_history.json')
-    update_history(records, date_str, history_path)
+    # Días = desde fecha de referencia hasta fecha del VCP (día hábil anterior)
+    days_ytd = (base_date - ref_ytd).days
+    days_mtd = (base_date - ref_mtd).days
+    days_12m = (base_date - ref_12m).days if ref_12m else 365
 
-    print(f"Fecha: {file_date}")
-
-if __name__ == '__main__':
-    main()
+    print(f"Fecha VCP (día hábil anterior): {base_date}")
+    print(f"Ref. YTD: {ref_ytd} → {days_ytd} días corridos")
+    print(f"Ref. MTD: {ref_mtd} → {days_mtd} días corridos")
