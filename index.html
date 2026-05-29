@@ -427,11 +427,6 @@ function showGlosario(e, key) {
 function hideGlosario() {
   document.getElementById('glosarioTip').style.display = 'none';
 }
-function gIcon(key) {
-  return '<span class="glosario-icon" '
-    + 'onmouseenter="showGlosario(event,'' + key + '')" '
-    + 'onmouseleave="hideGlosario()">?</span>';
-}
 
 // ── Fetch data then initialize ────────────────────────────────────────────
 (async function() {
