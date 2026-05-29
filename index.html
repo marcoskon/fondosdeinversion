@@ -109,6 +109,49 @@ option{background:var(--surface);}
 .sg-tooltip .tt-name{font-weight:600;color:var(--text);margin-bottom:6px;font-size:11px;}
 .sg-tooltip .tt-row{display:flex;justify-content:space-between;gap:16px;color:var(--muted);margin-top:2px;}
 .sg-tooltip .tt-val{color:var(--gold);font-family:var(--mono);}
+/* Glosario tooltips */
+.glosario-icon {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;
+  background:rgba(100,116,139,.25);color:var(--muted);
+  font-size:9px;font-weight:700;cursor:help;
+  border:1px solid rgba(100,116,139,.4);
+  margin-left:4px;vertical-align:middle;flex-shrink:0;
+  transition:background .15s;
+}
+.glosario-icon:hover { background:rgba(0,212,255,.2);color:var(--accent);border-color:var(--accent); }
+.glosario-tip {
+  position:fixed;z-index:9500;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:12px 16px;
+  max-width:280px;box-shadow:0 12px 32px rgba(0,0,0,.55);
+  pointer-events:none;
+}
+.glosario-tip .gt-term  { font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px; }
+.glosario-tip .gt-def   { font-size:11px;color:var(--text);line-height:1.5;margin-bottom:5px; }
+.glosario-tip .gt-ex    { font-size:10px;color:var(--muted);font-family:var(--mono); }
+
+/* Glosario tooltips */
+.glosario-icon {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;
+  background:rgba(100,116,139,.25);color:var(--muted);
+  font-size:9px;font-weight:700;cursor:help;
+  border:1px solid rgba(100,116,139,.4);
+  margin-left:4px;vertical-align:middle;flex-shrink:0;
+  transition:background .15s;position:relative;top:-1px;
+}
+.glosario-icon:hover{background:rgba(0,212,255,.2);color:var(--accent);border-color:var(--accent);}
+.glosario-tip{
+  position:fixed;z-index:9500;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:12px 16px;
+  max-width:280px;box-shadow:0 12px 32px rgba(0,0,0,.55);
+  pointer-events:none;
+}
+.glosario-tip .gt-term{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.glosario-tip .gt-def{font-size:11px;color:var(--text);line-height:1.5;margin-bottom:5px;}
+.glosario-tip .gt-ex{font-size:10px;color:var(--muted);font-family:var(--mono);}
 /* Compare tab */
 .cmp-layout{display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start;}
 @media(max-width:900px){.cmp-layout{grid-template-columns:1fr;}}
@@ -188,7 +231,7 @@ option{background:var(--surface);}
           <thead><tr>
             <th>#</th><th>Fondo</th>
             <th class="r">Patrimonio (M$)</th><th class="r">Mkt Share</th>
-            <th class="r">Var Diaria</th><th class="r">MTD %</th><th class="r">YTD %</th>
+            <th class="r">Var Diaria</th><th class="r">MTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'MTD')" onmouseleave="hideGlosario()">?</span></th><th class="r">YTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'YTD')" onmouseleave="hideGlosario()">?</span></th>
           </tr></thead>
           <tbody id="topFundsTbody"></tbody>
         </table>
@@ -240,10 +283,10 @@ option{background:var(--surface);}
       <div class="filter-label">Ordenar por</div>
       <div class="sort-btns">
         <button class="sort-btn" id="sortPatBtn" onclick="setSort('pat')">Patrimonio</button>
-        <button class="sort-btn active desc" id="sortTnaYBtn" onclick="setSort('ty')">TNA YTD</button>
-        <button class="sort-btn" id="sortTnaMBtn" onclick="setSort('tm')">TNA MTD</button>
-        <button class="sort-btn" id="sortYtdBtn" onclick="setSort('vy')">Rentab. YTD %</button>
-        <button class="sort-btn" id="sortMtdBtn" onclick="setSort('vm')">Rentab. MTD %</button>
+        <button class="sort-btn active desc" id="sortTnaYBtn" onclick="setSort('ty')">TNA YTD <span class="glosario-icon" onmouseenter="showGlosario(event,'TNA_YTD')" onmouseleave="hideGlosario()">?</span></button>
+        <button class="sort-btn" id="sortTnaMBtn" onclick="setSort('tm')">TNA MTD <span class="glosario-icon" onmouseenter="showGlosario(event,'TNA_MTD')" onmouseleave="hideGlosario()">?</span></button>
+        <button class="sort-btn" id="sortYtdBtn" onclick="setSort('vy')">Rentab. YTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'YTD')" onmouseleave="hideGlosario()">?</span></button>
+        <button class="sort-btn" id="sortMtdBtn" onclick="setSort('vm')">Rentab. MTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'MTD')" onmouseleave="hideGlosario()">?</span></button>
       </div>
     </div>
     <div class="filter-group" style="max-width:190px;">
@@ -261,8 +304,8 @@ option{background:var(--surface);}
         <thead><tr>
           <th>#</th><th>Fondo</th><th>Categoría</th>
           <th class="r">Patrimonio (M$)</th><th class="r">Mkt Share</th>
-          <th class="r">Var Diaria</th><th class="r">TNA YTD</th><th class="r">TNA MTD</th>
-          <th class="r">MTD %</th><th class="r">YTD %</th><th class="r">12M %</th>
+          <th class="r">Var Diaria</th><th class="r">TNA YTD <span class="glosario-icon" onmouseenter="showGlosario(event,'TNA_YTD')" onmouseleave="hideGlosario()">?</span></th><th class="r">TNA MTD <span class="glosario-icon" onmouseenter="showGlosario(event,'TNA_MTD')" onmouseleave="hideGlosario()">?</span></th>
+          <th class="r">MTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'MTD')" onmouseleave="hideGlosario()">?</span></th><th class="r">YTD % <span class="glosario-icon" onmouseenter="showGlosario(event,'YTD')" onmouseleave="hideGlosario()">?</span></th><th class="r">12M %</th>
         </tr></thead>
         <tbody id="rankTbody"></tbody>
       </table>
@@ -313,7 +356,7 @@ option{background:var(--surface);}
     </div>
     <div class="panel" style="min-height:480px;">
       <div class="panel-header">
-        <span class="panel-title">Evolución de la Cuotaparte</span>
+        <span class="panel-title">Evolución de la Cuotaparte <span id="historyBadge" style="font-size:9px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;"></span></span>
         <div style="display:flex;gap:6px;">
           <button class="sort-btn active" id="cmpBtnYTD" onclick="cmpSetMode('ytd')">YTD</button>
           <button class="sort-btn" id="cmpBtnMTD" onclick="cmpSetMode('mtd')">MTD</button>
@@ -335,10 +378,60 @@ option{background:var(--surface);}
 
 <!-- Modal container -->
 <div id="donutModal"></div>
+<!-- Glosario tooltip -->
+<div id="glosarioTip" class="glosario-tip" style="display:none;"></div>
 
 <script>
 // Module-level data array (populated by fetch)
 let RAW_DATA = [];
+let HISTORY  = null;  // loaded lazily when Compare tab opens
+
+
+// ── Glosario ─────────────────────────────────────────────────────────────────
+const GLOSARIO = {
+  'MTD': {
+    term: 'MTD — Month To Date',
+    def:  'Rendimiento acumulado desde el último día hábil del mes anterior hasta el día del dato. Refleja cuánto rindió el fondo en lo que va del mes.',
+    ex:   'Ej: si el dato es del 28/05, MTD mide desde el 30/04.'
+  },
+  'YTD': {
+    term: 'YTD — Year To Date',
+    def:  'Rendimiento acumulado desde el último día hábil de diciembre del año anterior hasta el día del dato. Refleja cuánto rindió el fondo en lo que va del año.',
+    ex:   'Ej: si el dato es del 28/05/2026, YTD mide desde el 31/12/2025.'
+  },
+  'TNA_YTD': {
+    term: 'TNA YTD — Tasa Nominal Anual (base YTD)',
+    def:  'Anualización simple del rendimiento YTD. Indica a qué tasa anual equivaldría el rendimiento del año si se mantuviese constante. Se calcula como: (Rendimiento YTD% ÷ días transcurridos) × 365.',
+    ex:   'Ej: +9% en 143 días → TNA ≈ 22.97% anual.'
+  },
+  'TNA_MTD': {
+    term: 'TNA MTD — Tasa Nominal Anual (base MTD)',
+    def:  'Anualización simple del rendimiento del mes. Indica a qué tasa anual equivaldría el rendimiento mensual si se mantuviese constante durante todo el año. Se calcula como: (Rendimiento MTD% ÷ días del mes transcurridos) × 365.',
+    ex:   'Ej: +1.96% en 27 días → TNA ≈ 26.5% anual.'
+  },
+};
+
+function showGlosario(e, key) {
+  const g = GLOSARIO[key]; if (!g) return;
+  const tip = document.getElementById('glosarioTip');
+  tip.innerHTML = '<div class="gt-term">' + g.term + '</div>'
+    + '<div class="gt-def">' + g.def + '</div>'
+    + '<div class="gt-ex">' + g.ex + '</div>';
+  tip.style.display = 'block';
+  const W = 280, H = tip.offsetHeight || 120;
+  const x = Math.min(e.clientX + 12, window.innerWidth  - W - 8);
+  const y = Math.min(e.clientY + 12, window.innerHeight - H - 8);
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+function hideGlosario() {
+  document.getElementById('glosarioTip').style.display = 'none';
+}
+function gIcon(key) {
+  return '<span class="glosario-icon" '
+    + 'onmouseenter="showGlosario(event,'' + key + '')" '
+    + 'onmouseleave="hideGlosario()">?</span>';
+}
 
 // ── Fetch data then initialize ────────────────────────────────────────────
 (async function() {
@@ -1079,61 +1172,94 @@ function cmpSetMode(m){
   cmpDrawChart();
 }
 
-function cmpPoints(fund,mode){
-  // Helper: safe multiplication
-  const pct = v => v!=null ? v/100 : null;
+async function loadHistory(){
+  try {
+    const res = await fetch('data/cafci_history.json');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    HISTORY = await res.json();
+    console.log('History loaded:', HISTORY.total_funds, 'fondos');
+  } catch(e) {
+    console.warn('Sin historial disponible:', e.message);
+    HISTORY = {funds:{}};
+  }
+}
 
+function getHistorySeries(fund, mode){
+  if(!HISTORY || !HISTORY.funds) return null;
+  const key = fund.key;  // already "base_name||cat"
+  const fd  = HISTORY.funds[key];
+  if(!fd || !fd.dates || fd.dates.length < 2) return null;
+
+  const today = new Date();
+  let cutoff;
   if(mode==='ytd'){
-    const pts=[{l:'30/12/25',v:100}];
+    cutoff = new Date(today.getFullYear()-1+(today.getMonth()<1?0:0), 11, 31); // 31/12 year ago
+    // Actually YTD = desde 31/12 del año anterior
+    cutoff = new Date(today.getFullYear(), 0, 0); // Dec 31 of previous year
+  } else if(mode==='mtd'){
+    cutoff = new Date(today.getFullYear(), today.getMonth()-1, today.getDate());
+  } else { // 12m
+    cutoff = new Date(today.getFullYear()-1, today.getMonth(), today.getDate());
+  }
+
+  // Filter to relevant date range
+  const parseDate = s => new Date(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8));
+  const pairs = fd.dates
+    .map((d,i) => ({d, v:fd.vcps[i], dt:parseDate(d)}))
+    .filter(p => p.dt >= cutoff)
+    .sort((a,b) => a.dt-b.dt);
+
+  if(pairs.length < 2) return null;
+
+  // Normalize: first point in range = 100
+  const base = pairs[0].v;
+  if(!base) return null;
+
+  return pairs.map(p => ({
+    label: p.d.slice(6)+'/'+p.d.slice(4,6)+'/'+p.d.slice(0,4),  // DD/MM/YYYY
+    val:   Math.round((p.v / base) * 10000) / 100  // index 100 = base
+  }));
+}
+
+function cmpPoints(fund, mode){
+  // Try real historical data first
+  const hist = getHistorySeries(fund, mode);
+  if(hist && hist.length >= 2) return hist;
+
+  // Fallback: reconstruct from summary metrics
+  const pct = v => v!=null ? v/100 : null;
+  if(mode==='ytd'){
+    const pts=[{label:'30/12/25',val:100}];
     if(fund.vy!=null){
-      // Full YTD available: reconstruct intermediate points
-      if(fund.vm!=null) pts.push({l:'30/04/26',v:100*(1+pct(fund.vy))/(1+pct(fund.vm))});
-      if(fund.vd!=null) pts.push({l:'21/05/26',v:100*(1+pct(fund.vy))/(1+pct(fund.vd))});
-      pts.push({l:'22/05/26',v:100*(1+pct(fund.vy))});
+      if(fund.vm!=null) pts.push({label:'30/04/26',val:100*(1+pct(fund.vy))/(1+pct(fund.vm))});
+      if(fund.vd!=null) pts.push({label:'21/05/26',val:100*(1+pct(fund.vy))/(1+pct(fund.vd))});
+      pts.push({label:'22/05/26',val:100*(1+pct(fund.vy))});
     } else if(fund.vm!=null){
-      // No YTD but MTD available: show flat to 30/04 then MTD move
-      pts.push({l:'30/04/26',v:100});
-      if(fund.vd!=null) pts.push({l:'21/05/26',v:100*(1+pct(fund.vm))/(1+pct(fund.vd))});
-      pts.push({l:'22/05/26',v:100*(1+pct(fund.vm))});
-    } else if(fund.vd!=null){
-      // Only daily: show flat then last day move
-      pts.push({l:'21/05/26',v:100});
-      pts.push({l:'22/05/26',v:100*(1+pct(fund.vd))});
+      pts.push({label:'30/04/26',val:100});
+      if(fund.vd!=null) pts.push({label:'21/05/26',val:100*(1+pct(fund.vm))/(1+pct(fund.vd))});
+      pts.push({label:'22/05/26',val:100*(1+pct(fund.vm))});
     } else {
-      pts.push({l:'22/05/26',v:100}); // no data, flat line
+      pts.push({label:'22/05/26',val:100});
     }
     return pts;
   }
-
   if(mode==='mtd'){
-    const pts=[{l:'30/04/26',v:100}];
+    const pts=[{label:'30/04/26',val:100}];
     if(fund.vm!=null){
-      if(fund.vd!=null) pts.push({l:'21/05/26',v:100*(1+pct(fund.vm))/(1+pct(fund.vd))});
-      pts.push({l:'22/05/26',v:100*(1+pct(fund.vm))});
-    } else if(fund.vd!=null){
-      pts.push({l:'21/05/26',v:100});
-      pts.push({l:'22/05/26',v:100*(1+pct(fund.vd))});
-    } else {
-      pts.push({l:'22/05/26',v:100});
-    }
+      if(fund.vd!=null) pts.push({label:'21/05/26',val:100*(1+pct(fund.vm))/(1+pct(fund.vd))});
+      pts.push({label:'22/05/26',val:100*(1+pct(fund.vm))});
+    } else { pts.push({label:'22/05/26',val:100}); }
     return pts;
   }
-
-  // 12M
-  const pts=[{l:'30/04/25',v:100}];
+  const pts=[{label:'30/04/25',val:100}];
   if(fund.v12!=null){
-    if(fund.vy!=null) pts.push({l:'30/12/25',v:100*(1+pct(fund.v12))/(1+pct(fund.vy))});
-    if(fund.vm!=null) pts.push({l:'30/04/26',v:100*(1+pct(fund.v12))/(1+pct(fund.vm))});
-    pts.push({l:'22/05/26',v:100*(1+pct(fund.v12))});
-  } else if(fund.vy!=null){
-    pts.push({l:'30/12/25',v:100});
-    if(fund.vm!=null) pts.push({l:'30/04/26',v:100*(1+pct(fund.vy))/(1+pct(fund.vm))});
-    pts.push({l:'22/05/26',v:100*(1+pct(fund.vy))});
-  } else {
-    pts.push({l:'22/05/26',v:100});
-  }
+    if(fund.vy!=null) pts.push({label:'30/12/25',val:100*(1+pct(fund.v12))/(1+pct(fund.vy))});
+    if(fund.vm!=null) pts.push({label:'30/04/26',val:100*(1+pct(fund.v12))/(1+pct(fund.vm))});
+    pts.push({label:'22/05/26',val:100*(1+pct(fund.v12))});
+  } else { pts.push({label:'22/05/26',val:100}); }
   return pts;
 }
+
 
 function cmpDrawChart(){
   const canvas=document.getElementById('cmpChart');
@@ -1141,6 +1267,10 @@ function cmpDrawChart(){
   if(!canvas) return;
   if(!cmpSel.length){canvas.style.display='none';empty2.style.display='flex';return;}
   canvas.style.display='block';empty2.style.display='none';
+  const hasRealData = series.some(s=>getHistorySeries(s.fund,cmpMode)!=null);
+  const badge = document.getElementById('historyBadge');
+  if(badge) badge.textContent = hasRealData ? '● datos reales' : '● estimado (pocos días de historial)';
+  if(badge) badge.style.color = hasRealData ? 'var(--green)' : 'var(--gold)';
   const dpr=window.devicePixelRatio||1;
   const W=canvas.parentElement.clientWidth-48,H=400;
   canvas.style.width=W+'px';canvas.style.height=H+'px';
@@ -1154,7 +1284,7 @@ function cmpDrawChart(){
   const padV=(maxV-minV)*.15||3;
   const yMin=minV-padV,yMax=maxV+padV;
   const labSet=new Set();
-  series.forEach(s=>s.pts.forEach(p=>labSet.add(p.l)));
+  series.forEach(s=>s.pts.forEach(p=>labSet.add(p.label)));
   const labs=[...labSet].sort((a,b)=>{
     const p=l=>{const[d,m,y]=l.split('/');return new Date(+y,+m-1,+d);};
     return p(a)-p(b);
@@ -1183,8 +1313,8 @@ function cmpDrawChart(){
   labs.forEach((l,i)=>ctx.fillText(l,xOf(i),H-PAD.b+18));
   series.forEach(({fund,pts})=>{
     const col=fund.color;
-    const xs=pts.map(p=>xOf(labs.indexOf(p.l)));
-    const ys=pts.map(p=>yOf(p.v));
+    const xs=pts.map(p=>xOf(labs.indexOf(p.label)));
+    const ys=pts.map(p=>yOf(p.val));
     const grad=ctx.createLinearGradient(0,PAD.t,0,PAD.t+ch);
     grad.addColorStop(0,col+'30');grad.addColorStop(1,col+'04');
     ctx.beginPath();ctx.moveTo(xs[0],yOf(100));
@@ -1242,7 +1372,10 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='rankings') renderRankings();
-  if(name==='compare') cmpDrawChart();
+  if(name==='compare'){
+    if(!HISTORY) loadHistory().then(()=>cmpDrawChart());
+    else cmpDrawChart();
+  }
 }
 
 
@@ -1303,5 +1436,7 @@ function init() {
   document.getElementById('sortTnaYBtn').className='sort-btn active desc';
 }
 </script>
+
+<div id="glosarioTip" class="glosario-tip" style="display:none;"></div>
 </body>
 </html>
