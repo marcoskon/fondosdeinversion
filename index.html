@@ -1262,10 +1262,6 @@ function cmpDrawChart(){
   if(!canvas) return;
   if(!cmpSel.length){canvas.style.display='none';empty2.style.display='flex';return;}
   canvas.style.display='block';empty2.style.display='none';
-  const hasRealData = series.some(s=>getHistorySeries(s.fund,cmpMode)!=null);
-  const badge = document.getElementById('historyBadge');
-  if(badge) badge.textContent = hasRealData ? '● datos reales' : '● estimado (pocos días de historial)';
-  if(badge) badge.style.color = hasRealData ? 'var(--green)' : 'var(--gold)';
   const dpr=window.devicePixelRatio||1;
   const W=canvas.parentElement.clientWidth-48,H=400;
   canvas.style.width=W+'px';canvas.style.height=H+'px';
@@ -1274,6 +1270,10 @@ function cmpDrawChart(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   const series=cmpSel.map(s=>({fund:s,pts:cmpPoints(s,cmpMode)})).filter(s=>s.pts.length>=2);
   if(!series.length) return;
+  const hasRealData = series.some(s=>getHistorySeries(s.fund,cmpMode)!=null);
+  const badge = document.getElementById('historyBadge');
+  if(badge) badge.textContent = hasRealData ? '● datos reales' : '● estimado (pocos días de historial)';
+  if(badge) badge.style.color = hasRealData ? 'var(--green)' : 'var(--gold)';
   const allV=series.flatMap(s=>s.pts.map(p=>p.v));
   const minV=Math.min(...allV),maxV=Math.max(...allV);
   const padV=(maxV-minV)*.15||3;
