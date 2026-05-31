@@ -371,6 +371,17 @@ option{background:var(--surface);}
           <div style="font-size:13px;">Agrega al menos un FCI para ver el gráfico</div>
         </div>
       </div>
+
+      <!-- Comparativo de rendimiento -->
+      <div style="border-top:1px solid var(--border);padding:1.5rem 1.5rem 1rem;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:1rem;">
+          Comparativo de Rendimiento
+        </div>
+        <canvas id="cmpBarChart" style="display:none;width:100%;"></canvas>
+        <div id="cmpBarEmpty" style="font-size:12px;color:var(--muted);padding:.5rem 0;display:none;">
+          Agregá fondos para ver la comparación
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1035,11 +1046,11 @@ function cmpAdd(key){
   cmpColIdx++;
   document.getElementById('cmpDropdown').style.display='none';
   document.getElementById('cmpSearch').value='';
-  cmpRenderList(); cmpDrawChart();
+  cmpRenderList(); cmpDrawChart(); cmpDrawBarChart();
 }
 
 function cmpRemove(idx){cmpSel.splice(idx,1);cmpRenderList();cmpDrawChart();}
-function cmpClearAll(){cmpSel=[];cmpColIdx=0;cmpRenderList();cmpDrawChart();}
+function cmpClearAll(){cmpSel=[];cmpColIdx=0;cmpRenderList();cmpDrawChart();cmpDrawBarChart();}
 
 function cmpRenderList(){
   const listEl  = document.getElementById('cmpList');
@@ -1164,7 +1175,7 @@ function cmpSetMode(m){
     const el=document.getElementById(id);
     if(el) el.className='sort-btn'+(k===m?' active':'');
   });
-  cmpDrawChart();
+  cmpDrawChart(); cmpDrawBarChart();
 }
 
 async function loadHistory(){
@@ -1345,6 +1356,146 @@ function cmpDrawChart(){
 
 window.addEventListener('resize',()=>{const dd=document.getElementById('cmpDropdown');if(dd&&dd.style.display==='block')cmpPositionDropdown();});
 window.addEventListener('scroll',()=>{const dd=document.getElementById('cmpDropdown');if(dd&&dd.style.display==='block')cmpPositionDropdown();},true);
+
+function cmpDrawBarChart() {
+  const canvas  = document.getElementById('cmpBarChart');
+  const emptyEl = document.getElementById('cmpBarEmpty');
+  if (!canvas) return;
+
+  if (!cmpSel.length) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.clientWidth - 48;
+  const periods = [
+    { key: 'vm',  label: 'MTD', color: '#00d4ff' },
+    { key: 'vy',  label: 'YTD', color: '#10b981' },
+    { key: 'v12', label: '12M', color: '#f59e0b' },
+  ];
+
+  // Calculate height based on number of funds
+  const rowH   = 36;
+  const padTop = 32, padBot = 20, padLeft = 200, padRight = 80;
+  const H = padTop + cmpSel.length * rowH + padBot;
+
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, W, H);
+
+  const chartW = W - padLeft - padRight;
+
+  // Find max absolute value for scale
+  let maxVal = 0;
+  cmpSel.forEach(s => {
+    periods.forEach(p => {
+      const v = s[p.key];
+      if (v != null && Math.abs(v) > maxVal) maxVal = Math.abs(v);
+    });
+  });
+  if (!maxVal) maxVal = 10;
+  maxVal = Math.ceil(maxVal * 1.2);
+
+  // Zero line x
+  const zeroX = padLeft + chartW / 2;
+  const scale = (chartW / 2) / maxVal;
+
+  // Period labels (header)
+  const barH  = 10;
+  const barGap = 2;
+  const groupH = periods.length * (barH + barGap);
+
+  // Grid lines
+  [-maxVal, -maxVal/2, 0, maxVal/2, maxVal].forEach(v => {
+    const x = zeroX + v * scale;
+    ctx.strokeStyle = v === 0 ? 'rgba(100,116,139,.5)' : 'rgba(30,45,69,.8)';
+    ctx.lineWidth   = v === 0 ? 1 : 1;
+    ctx.setLineDash(v === 0 ? [] : [3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, padTop - 10); ctx.lineTo(x, H - padBot); ctx.stroke();
+    ctx.setLineDash([]);
+    // x-axis label
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px IBM Plex Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(0) + '%', x, padTop - 2);
+  });
+
+  // Legend (top right)
+  let legX = padLeft;
+  periods.forEach(p => {
+    ctx.fillStyle = p.color;
+    ctx.fillRect(legX, 6, 18, 8);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px IBM Plex Sans, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.label, legX + 22, 14);
+    legX += 60;
+  });
+
+  // Bars per fund
+  cmpSel.forEach((s, fi) => {
+    const baseY = padTop + fi * rowH;
+    const midY  = baseY + rowH / 2;
+
+    // Fund name (left)
+    ctx.fillStyle = s.color;
+    ctx.font = 'bold 10px IBM Plex Sans, monospace';
+    ctx.textAlign = 'right';
+    const shortName = s.name.length > 28 ? s.name.slice(0, 27) + '…' : s.name;
+    ctx.fillText(shortName, padLeft - 8, midY + 4);
+
+    // Color dot
+    ctx.beginPath();
+    ctx.arc(padLeft - 4, midY, 3, 0, 2 * Math.PI);
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // Bars
+    const totalGroupH = periods.length * (barH + barGap) - barGap;
+    const startY = midY - totalGroupH / 2;
+
+    periods.forEach((p, pi) => {
+      const v = s[p.key];
+      const y = startY + pi * (barH + barGap);
+
+      if (v == null) {
+        // No data marker
+        ctx.fillStyle = 'rgba(100,116,139,.3)';
+        ctx.fillRect(zeroX - 2, y, 4, barH);
+        return;
+      }
+
+      const barLen = Math.min(Math.abs(v) * scale, chartW / 2);
+      const barX   = v >= 0 ? zeroX : zeroX - barLen;
+
+      // Bar background
+      ctx.fillStyle = p.color + '22';
+      ctx.fillRect(padLeft, y, chartW, barH);
+
+      // Bar fill
+      ctx.fillStyle = p.color + (v >= 0 ? 'cc' : '88');
+      ctx.fillRect(barX, y, barLen, barH);
+
+      // Value label
+      ctx.fillStyle = v >= 0 ? p.color : '#ef4444';
+      ctx.font = 'bold 9px IBM Plex Mono, monospace';
+      ctx.textAlign = v >= 0 ? 'left' : 'right';
+      const labelX = v >= 0 ? barX + barLen + 3 : barX - 3;
+      ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(1) + '%', labelX, y + barH - 1);
+    });
+  });
+}
+
 document.addEventListener('click',e=>{
   if(!e.target.closest('#cmpSearch')&&!e.target.closest('#cmpDropdown')){
     const dd=document.getElementById('cmpDropdown');
