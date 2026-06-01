@@ -1053,113 +1053,68 @@ function cmpRemove(idx){cmpSel.splice(idx,1);cmpRenderList();cmpDrawChart();}
 function cmpClearAll(){cmpSel=[];cmpColIdx=0;cmpRenderList();cmpDrawChart();cmpDrawBarChart();}
 
 function cmpRenderList(){
-  const listEl  = document.getElementById('cmpList');
-  const emptyEl = document.getElementById('cmpEmpty');
-  const statsP  = document.getElementById('cmpStatsPanel');
-  const statsEl = document.getElementById('cmpStats');
-
   document.getElementById('cmpCount').textContent =
     cmpSel.length + ' fondo' + (cmpSel.length !== 1 ? 's' : '');
 
+  const listEl  = document.getElementById('cmpList');
+  const statsP  = document.getElementById('cmpStatsPanel');
+  const statsEl = document.getElementById('cmpStats');
+
   if (!cmpSel.length) {
-    listEl.innerHTML = '';
-    listEl.appendChild(emptyEl);
-    emptyEl.style.display = '';
-    statsP.style.display  = 'none';
+    listEl.innerHTML = '<div id="cmpEmpty" style="color:var(--muted);font-size:12px;padding:.5rem 0;">Busc\u00e1 y agrega fondos para comparar</div>';
+    statsP.style.display = 'none';
     return;
   }
 
-  emptyEl.style.display = 'none';
-
-  // ── Fund list ─────────────────────────────────────────────────────────────
-  listEl.innerHTML = '';
-
-  cmpSel.forEach((s, i) => {
+  // Build list HTML
+  const rows = cmpSel.map((s, i) => {
     const cat    = s.cat ? shortCat(s.cat) : '';
     const vyVal  = (s.vy != null && !isNaN(s.vy)) ? s.vy : null;
-    const vyStr  = vyVal != null ? ((vyVal >= 0 ? '+' : '') + vyVal.toFixed(1) + '% YTD') : '—';
+    const vyStr  = vyVal != null ? (vyVal >= 0 ? '+' : '') + vyVal.toFixed(1) + '% YTD' : '\u2014';
     const vyCol  = vyVal != null ? (vyVal >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
     const catCol = (s.cat && catColorMap[s.cat]) || 'var(--muted)';
-    const safeColor = s.color || '#64748b';
+    const c      = s.color || '#64748b';
+    const name   = (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;'
+      +'background:var(--surface2);border:1px solid var(--border);margin-bottom:4px;" data-idx="'+i+'">'
+      +'<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:'+c+';"></div>'
+      +'<div style="flex:1;min-width:0;overflow:hidden;">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+name+'">'+name+'</div>'
+      +'<div style="font-size:9px;color:'+catCol+';">'+cat+'</div>'
+      +'</div>'
+      +'<span style="font-family:var(--mono);font-size:11px;white-space:nowrap;color:'+vyCol+';flex-shrink:0;">'+vyStr+'</span>'
+      +'<button data-remove="'+i+'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;">&times;</button>'
+      +'</div>';
+  }).join('');
 
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;' +
-      'border-radius:5px;background:var(--surface2);border:1px solid var(--border);margin-bottom:4px;';
+  listEl.innerHTML = rows;
 
-    const dot = document.createElement('div');
-    dot.style.cssText = 'width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + safeColor + ';';
-
-    const info = document.createElement('div');
-    info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
-
-    const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-size:11px;font-weight:600;color:var(--text);' +
-      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    nameEl.textContent = s.name || '(sin nombre)';
-
-    const catEl = document.createElement('div');
-    catEl.style.cssText = 'font-size:9px;color:' + catCol + ';';
-    catEl.textContent   = cat;
-
-    info.appendChild(nameEl);
-    info.appendChild(catEl);
-
-    const vyEl = document.createElement('span');
-    vyEl.style.cssText = 'font-family:var(--mono);font-size:11px;white-space:nowrap;color:' + vyCol + ';flex-shrink:0;';
-    vyEl.textContent   = vyStr;
-
-    const btn = document.createElement('button');
-    btn.style.cssText = 'background:none;border:none;color:var(--muted);' +
-      'cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;';
-    btn.textContent = '×';
-    btn.onclick = (function(idx){ return function(){ cmpRemove(idx); }; })(i);
-
-    row.appendChild(dot); row.appendChild(info);
-    row.appendChild(vyEl); row.appendChild(btn);
-    listEl.appendChild(row);
+  // Attach remove handlers
+  listEl.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.onclick = function(){ cmpRemove(+this.dataset.remove); };
   });
 
-  // ── Resumen comparativo ───────────────────────────────────────────────────
+  // Build resumen stats
   statsP.style.display = '';
   statsEl.innerHTML = '';
-
   [...cmpSel].sort((a,b) => ((b.vy||0) - (a.vy||0))).forEach(s => {
-    const safeColor = s.color || '#64748b';
-
+    const c = s.color || '#64748b';
     const mkCell = (v, lbl) => {
-      const valid = v != null && !isNaN(v);
-      const d = document.createElement('div');
-      d.style.cssText = 'text-align:center;background:var(--surface2);border-radius:3px;padding:4px;';
-      const l = document.createElement('div');
-      l.style.cssText = 'font-size:9px;color:var(--muted);margin-bottom:2px;';
-      l.textContent = lbl;
-      const vEl = document.createElement('div');
-      vEl.style.cssText = 'font-size:11px;font-family:var(--mono);color:' +
-        (valid ? (v >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)') + ';';
-      vEl.textContent = valid ? ((v >= 0 ? '+' : '') + v.toFixed(1) + '%') : '—';
-      d.appendChild(l); d.appendChild(vEl);
-      return d;
+      const ok = v != null && !isNaN(v);
+      return '<div style="text-align:center;background:var(--surface2);border-radius:3px;padding:4px;">'
+        +'<div style="font-size:9px;color:var(--muted);margin-bottom:2px;">'+lbl+'</div>'
+        +'<div style="font-size:11px;font-family:var(--mono);color:'+(ok?(v>=0?'var(--green)':'var(--red)'):'var(--muted)')+';">'
+        +(ok?(v>=0?'+':'')+v.toFixed(1)+'%':'\u2014')+'</div></div>';
     };
-
     const block = document.createElement('div');
     block.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
-
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:5px;';
-    const hdot = document.createElement('div');
-    hdot.style.cssText = 'width:8px;height:8px;border-radius:2px;background:' + safeColor + ';flex-shrink:0;';
-    const hname = document.createElement('span');
-    hname.style.cssText = 'font-weight:600;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    hname.textContent = s.name || '';
-    header.appendChild(hdot); header.appendChild(hname);
-
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;';
-    grid.appendChild(mkCell(s.vy, 'YTD'));
-    grid.appendChild(mkCell(s.vm, 'MTD'));
-    grid.appendChild(mkCell(s.v12, '12M'));
-
-    block.appendChild(header); block.appendChild(grid);
+    block.innerHTML =
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">'
+      +'<div style="width:8px;height:8px;border-radius:2px;background:'+c+';flex-shrink:0;"></div>'
+      +'<span style="font-weight:600;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+      +(s.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">'
+      +mkCell(s.vy,'YTD')+mkCell(s.vm,'MTD')+mkCell(s.v12,'12M')+'</div>';
     statsEl.appendChild(block);
   });
 }
