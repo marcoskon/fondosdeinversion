@@ -1057,40 +1057,37 @@ function cmpRenderList(){
   const emptyEl = document.getElementById('cmpEmpty');
   const statsP  = document.getElementById('cmpStatsPanel');
   const statsEl = document.getElementById('cmpStats');
+
   document.getElementById('cmpCount').textContent =
     cmpSel.length + ' fondo' + (cmpSel.length !== 1 ? 's' : '');
 
-  // Clear list
-  while (listEl.firstChild && listEl.firstChild !== emptyEl)
-    listEl.removeChild(listEl.firstChild);
-
   if (!cmpSel.length) {
-    if (!listEl.contains(emptyEl)) listEl.appendChild(emptyEl);
+    listEl.innerHTML = '';
+    listEl.appendChild(emptyEl);
     emptyEl.style.display = '';
     statsP.style.display  = 'none';
     return;
   }
 
   emptyEl.style.display = 'none';
-  if (listEl.contains(emptyEl)) listEl.removeChild(emptyEl);
 
-  // Build each fund row as real DOM node (avoids innerHTML parsing issues)
-  // Clear previous fund rows
-  while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+  // ── Fund list ─────────────────────────────────────────────────────────────
+  listEl.innerHTML = '';
 
   cmpSel.forEach((s, i) => {
-    const cat    = shortCat(s.cat);
-    const vyVal  = s.vy != null ? s.vy : null;
+    const cat    = s.cat ? shortCat(s.cat) : '';
+    const vyVal  = (s.vy != null && !isNaN(s.vy)) ? s.vy : null;
     const vyStr  = vyVal != null ? ((vyVal >= 0 ? '+' : '') + vyVal.toFixed(1) + '% YTD') : '—';
     const vyCol  = vyVal != null ? (vyVal >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
-    const catCol = catColorMap[s.cat] || 'var(--muted)';
+    const catCol = (s.cat && catColorMap[s.cat]) || 'var(--muted)';
+    const safeColor = s.color || '#64748b';
 
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;' +
-      'border-radius:5px;background:var(--surface2);border:1px solid var(--border);';
+      'border-radius:5px;background:var(--surface2);border:1px solid var(--border);margin-bottom:4px;';
 
     const dot = document.createElement('div');
-    dot.style.cssText = 'width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + s.color + ';';
+    dot.style.cssText = 'width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + safeColor + ';';
 
     const info = document.createElement('div');
     info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
@@ -1098,8 +1095,7 @@ function cmpRenderList(){
     const nameEl = document.createElement('div');
     nameEl.style.cssText = 'font-size:11px;font-weight:600;color:var(--text);' +
       'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    nameEl.title       = s.name;
-    nameEl.textContent = s.name;
+    nameEl.textContent = s.name || '(sin nombre)';
 
     const catEl = document.createElement('div');
     catEl.style.cssText = 'font-size:9px;color:' + catCol + ';';
@@ -1109,38 +1105,39 @@ function cmpRenderList(){
     info.appendChild(catEl);
 
     const vyEl = document.createElement('span');
-    vyEl.style.cssText = 'font-family:var(--mono);font-size:11px;white-space:nowrap;color:' + vyCol + ';';
+    vyEl.style.cssText = 'font-family:var(--mono);font-size:11px;white-space:nowrap;color:' + vyCol + ';flex-shrink:0;';
     vyEl.textContent   = vyStr;
 
     const btn = document.createElement('button');
     btn.style.cssText = 'background:none;border:none;color:var(--muted);' +
-      'cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;';
+      'cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;';
     btn.textContent = '×';
-    btn.addEventListener('click', (function(idx){ return function(){ cmpRemove(idx); }; })(i));
+    btn.onclick = (function(idx){ return function(){ cmpRemove(idx); }; })(i);
 
-    row.appendChild(dot);
-    row.appendChild(info);
-    row.appendChild(vyEl);
-    row.appendChild(btn);
+    row.appendChild(dot); row.appendChild(info);
+    row.appendChild(vyEl); row.appendChild(btn);
     listEl.appendChild(row);
   });
 
-  // Resumen comparativo
+  // ── Resumen comparativo ───────────────────────────────────────────────────
   statsP.style.display = '';
-  while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+  statsEl.innerHTML = '';
 
-  [...cmpSel].sort((a,b) => (b.vy||0) - (a.vy||0)).forEach(s => {
-    const mk = (v, lbl) => {
+  [...cmpSel].sort((a,b) => ((b.vy||0) - (a.vy||0))).forEach(s => {
+    const safeColor = s.color || '#64748b';
+
+    const mkCell = (v, lbl) => {
+      const valid = v != null && !isNaN(v);
       const d = document.createElement('div');
       d.style.cssText = 'text-align:center;background:var(--surface2);border-radius:3px;padding:4px;';
-      const lblEl = document.createElement('div');
-      lblEl.style.cssText = 'font-size:9px;color:var(--muted);margin-bottom:2px;';
-      lblEl.textContent = lbl;
-      const valEl = document.createElement('div');
-      valEl.style.cssText = 'font-size:11px;font-family:var(--mono);color:' +
-        (v != null ? (v >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)') + ';';
-      valEl.textContent = v != null ? ((v >= 0 ? '+' : '') + v.toFixed(1) + '%') : '—';
-      d.appendChild(lblEl); d.appendChild(valEl);
+      const l = document.createElement('div');
+      l.style.cssText = 'font-size:9px;color:var(--muted);margin-bottom:2px;';
+      l.textContent = lbl;
+      const vEl = document.createElement('div');
+      vEl.style.cssText = 'font-size:11px;font-family:var(--mono);color:' +
+        (valid ? (v >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)') + ';';
+      vEl.textContent = valid ? ((v >= 0 ? '+' : '') + v.toFixed(1) + '%') : '—';
+      d.appendChild(l); d.appendChild(vEl);
       return d;
     };
 
@@ -1150,20 +1147,19 @@ function cmpRenderList(){
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:5px;';
     const hdot = document.createElement('div');
-    hdot.style.cssText = 'width:8px;height:8px;border-radius:2px;background:' + s.color + ';flex-shrink:0;';
+    hdot.style.cssText = 'width:8px;height:8px;border-radius:2px;background:' + safeColor + ';flex-shrink:0;';
     const hname = document.createElement('span');
-    hname.style.cssText = 'font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    hname.textContent = s.name;
+    hname.style.cssText = 'font-weight:600;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    hname.textContent = s.name || '';
     header.appendChild(hdot); header.appendChild(hname);
 
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;';
-    grid.appendChild(mk(s.vy,'YTD'));
-    grid.appendChild(mk(s.vm,'MTD'));
-    grid.appendChild(mk(s.v12,'12M'));
+    grid.appendChild(mkCell(s.vy, 'YTD'));
+    grid.appendChild(mkCell(s.vm, 'MTD'));
+    grid.appendChild(mkCell(s.v12, '12M'));
 
-    block.appendChild(header);
-    block.appendChild(grid);
+    block.appendChild(header); block.appendChild(grid);
     statsEl.appendChild(block);
   });
 }
@@ -1329,7 +1325,7 @@ function cmpDrawChart(){
       ctx.fillStyle='#111827';ctx.fill();
       ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
       if(i===pts.length-1){
-        const pct=p.v-100;
+        const pct=p.val-100;
         const partial=fund.vy==null&&cmpMode==='ytd';
         const txt=(pct>=0?'+':'')+pct.toFixed(1)+'%'+(partial?' *':'');
         ctx.fillStyle=col;ctx.font='bold 11px IBM Plex Mono,monospace';
