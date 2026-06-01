@@ -1280,7 +1280,7 @@ function cmpDrawChart(){
   const badge = document.getElementById('historyBadge');
   if(badge) badge.textContent = '● rendimiento estimado';
   if(badge) badge.style.color = 'var(--muted)';
-  const allV=series.flatMap(s=>s.pts.map(p=>p.v));
+  const allV=series.flatMap(s=>s.pts.map(p=>p.val));
   const minV=Math.min(...allV),maxV=Math.max(...allV);
   const padV=(maxV-minV)*.15||3;
   const yMin=minV-padV,yMax=maxV+padV;
