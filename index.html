@@ -192,6 +192,7 @@ option{background:var(--surface);}
   <button class="tab-btn active" onclick="switchTab('overview',this)">📊 &nbsp;Vista General</button>
   <button class="tab-btn" onclick="switchTab('rankings',this)">🏆 &nbsp;Ranking por Categoría</button>
   <button class="tab-btn" onclick="switchTab('compare',this)">⚡ &nbsp;Comparar FCIs</button>
+  <button class="tab-btn" onclick="switchTab('aum',this)">📈 &nbsp;Evolución Patrimonios</button>
 </div>
 
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
@@ -1442,6 +1443,253 @@ function cmpDrawBarChart() {
   });
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUM EVOLUTION TAB
+// ═══════════════════════════════════════════════════════════════════════════
+let AUM_HISTORY = null;
+
+async function loadAumHistory() {
+  try {
+    const res = await fetch('data/cafci_aum_history.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    AUM_HISTORY = await res.json();
+    console.log('AUM History loaded:', AUM_HISTORY.dates.length, 'días');
+  } catch(e) {
+    console.warn('Sin historial AUM:', e.message);
+    AUM_HISTORY = { dates: [], total: [], categories: {} };
+  }
+}
+
+function aumDateLabel(d) {
+  // d = "YYYYMMDD"
+  return d.slice(6) + '/' + d.slice(4,6) + '/' + d.slice(0,4);
+}
+
+function renderAumTab() {
+  if (!AUM_HISTORY) return;
+  renderAumKpis();
+  renderAumTotalChart();
+  renderAumCatChart();
+  renderAumCatTable();
+}
+
+function renderAumKpis() {
+  const h = AUM_HISTORY;
+  const n = h.dates.length;
+  if (!n) return;
+
+  const latest = h.total[n-1];
+  const prev   = n > 1 ? h.total[n-2] : null;
+  const change = prev ? latest - prev : null;
+  const changePct = prev ? (latest - prev) / prev * 100 : null;
+
+  // Find biggest category
+  let bigCat = '', bigVal = 0;
+  Object.entries(h.categories).forEach(([cat, vals]) => {
+    const v = vals[n-1];
+    if (v && v > bigVal) { bigVal = v; bigCat = cat; }
+  });
+
+  const kpis = [
+    { label:'AUM Total Actual', value: fmtMoney(latest), sub: aumDateLabel(h.dates[n-1]), cls:'' },
+    { label:'Variación Último Día',
+      value: change != null ? (change >= 0 ? '+' : '') + fmtMoney(change) : '—',
+      sub: changePct != null ? (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%' : '—',
+      cls: change >= 0 ? 'green' : 'purple' },
+    { label:'Días de Historial', value: n.toString(), sub: n > 1 ? aumDateLabel(h.dates[0]) + ' → ' + aumDateLabel(h.dates[n-1]) : aumDateLabel(h.dates[0]), cls:'gold' },
+    { label:'Mayor Categoría', value: bigCat.replace(' Peso Argentina',' ARS').replace(' Dolar Estadounidense',' USD').replace(' Dolar Estadounidense Billete',' USD BLL'), sub: fmtMoney(bigVal) + ' ARS', cls:'' },
+  ];
+  document.getElementById('aumKpiGrid').innerHTML = kpis.map(k =>
+    '<div class="kpi-card ' + k.cls + '"><div class="kpi-label">' + k.label + '</div>' +
+    '<div class="kpi-value" style="font-size:16px;">' + k.value + '</div>' +
+    '<div class="kpi-sub">' + k.sub + '</div></div>'
+  ).join('');
+}
+
+function drawAumLineChart(canvasId, emptyId, labels, series, yFormatter) {
+  const canvas  = document.getElementById(canvasId);
+  const emptyEl = document.getElementById(emptyId);
+  if (!canvas) return;
+
+  if (!labels.length || !series.length) {
+    canvas.style.display = 'none';
+    emptyEl.style.display = '';
+    emptyEl.textContent = 'No hay datos históricos aún. Subí más planillas diarias para ver la evolución.';
+    return;
+  }
+  canvas.style.display = 'block';
+  emptyEl.style.display = 'none';
+
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.clientWidth - 48;
+  const H   = 320;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const PAD = {t:20, r:20, b:48, l:80};
+  const cw = W - PAD.l - PAD.r;
+  const ch = H - PAD.t - PAD.b;
+
+  // Y range across all series
+  const allVals = series.flatMap(s => s.data.filter(v => v != null));
+  if (!allVals.length) return;
+  let minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const pad = (maxV - minV) * 0.15 || maxV * 0.1;
+  minV -= pad; maxV += pad;
+
+  const xOf = i => PAD.l + (i / Math.max(labels.length - 1, 1)) * cw;
+  const yOf = v => PAD.t + ch - ((v - minV) / (maxV - minV)) * ch;
+
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  for (let i = 0; i <= 5; i++) {
+    const v = minV + (maxV - minV) * i / 5;
+    const y = yOf(v);
+    ctx.strokeStyle = 'rgba(30,45,69,.8)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '10px IBM Plex Mono,monospace'; ctx.textAlign = 'right';
+    ctx.fillText(yFormatter(v), PAD.l - 4, y + 3.5);
+  }
+
+  // X labels — show at most 10
+  const step = Math.max(1, Math.ceil(labels.length / 10));
+  ctx.fillStyle = '#64748b'; ctx.font = '9px IBM Plex Mono,monospace'; ctx.textAlign = 'center';
+  labels.forEach((lbl, i) => {
+    if (i % step === 0 || i === labels.length - 1)
+      ctx.fillText(lbl, xOf(i), H - PAD.b + 16);
+  });
+
+  // Series
+  series.forEach(s => {
+    const pts = s.data.map((v, i) => v != null ? {x: xOf(i), y: yOf(v)} : null);
+    const valid = pts.filter(Boolean);
+    if (!valid.length) return;
+
+    // Area
+    const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + ch);
+    grad.addColorStop(0, s.color + '30'); grad.addColorStop(1, s.color + '04');
+    ctx.beginPath();
+    let first = true;
+    pts.forEach((p, i) => {
+      if (!p) return;
+      if (first) { ctx.moveTo(p.x, yOf(minV)); ctx.lineTo(p.x, p.y); first = false; }
+      else ctx.lineTo(p.x, p.y);
+    });
+    // close area
+    const lastPt = pts.filter(Boolean).pop();
+    if (lastPt) ctx.lineTo(lastPt.x, yOf(minV));
+    ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Line
+    ctx.beginPath(); first = true;
+    pts.forEach(p => {
+      if (!p) { first = true; return; }
+      if (first) { ctx.moveTo(p.x, p.y); first = false; }
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.stroke();
+
+    // Last point label
+    if (lastPt) {
+      const lastV = s.data.filter(v => v != null).pop();
+      ctx.fillStyle = s.color; ctx.font = 'bold 10px IBM Plex Mono,monospace';
+      ctx.textAlign = lastPt.x > W - PAD.r - 80 ? 'right' : 'left';
+      ctx.fillText(yFormatter(lastV), lastPt.x + (lastPt.x > W - PAD.r - 80 ? -6 : 6), lastPt.y - 6);
+    }
+  });
+
+  // Legend
+  let legX = PAD.l; const legY = H - 8;
+  ctx.font = '10px IBM Plex Sans,monospace';
+  series.forEach(s => {
+    ctx.fillStyle = s.color; ctx.fillRect(legX, legY - 8, 12, 8);
+    ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'left';
+    const lbl = s.name.length > 22 ? s.name.slice(0, 21) + '…' : s.name;
+    ctx.fillText(lbl, legX + 16, legY);
+    legX += ctx.measureText(lbl).width + 36;
+    if (legX > W - 120) legX = PAD.l;
+  });
+}
+
+function renderAumTotalChart() {
+  const h = AUM_HISTORY;
+  const labels = h.dates.map(aumDateLabel);
+  const series = [{
+    name: 'AUM Total Mercado',
+    color: '#00d4ff',
+    data: h.total
+  }];
+  drawAumLineChart('aumTotalChart', 'aumTotalEmpty', labels, series,
+    v => fmtMoney(v));
+  document.getElementById('aumTotalBadge').textContent = h.dates.length + ' día' + (h.dates.length !== 1 ? 's' : '') + ' de historial';
+}
+
+function renderAumCatChart() {
+  const h = AUM_HISTORY;
+  const topN = parseInt(document.getElementById('aumTopN').value || '8');
+  const n = h.dates.length;
+  if (!n) return;
+
+  // Pick top N categories by latest value
+  const catLatest = Object.entries(h.categories)
+    .map(([cat, vals]) => ({ cat, val: vals[n-1] || 0 }))
+    .sort((a,b) => b.val - a.val)
+    .slice(0, topN);
+
+  const labels = h.dates.map(aumDateLabel);
+  const series = catLatest.map((c, i) => ({
+    name: c.cat.replace(' Peso Argentina',' ARS').replace(' Dolar Estadounidense Billete',' USD BLL').replace(' Dolar Estadounidense',' USD'),
+    color: PALETTE[i % PALETTE.length],
+    data: h.categories[c.cat]
+  }));
+
+  drawAumLineChart('aumCatChart', 'aumCatEmpty', labels, series,
+    v => fmtMoney(v));
+}
+
+function renderAumCatTable() {
+  const h = AUM_HISTORY;
+  const n = h.dates.length;
+  if (!n) { document.getElementById('aumCatTbody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem;">Sin datos históricos</td></tr>'; return; }
+
+  const catData = Object.entries(h.categories).map(([cat, vals]) => {
+    const curr = vals[n-1] || 0;
+    const prev = n > 1 ? (vals[n-2] || 0) : null;
+    const chg  = prev != null ? curr - prev : null;
+    const chgPct = prev ? chg / prev * 100 : null;
+    return { cat, curr, prev, chg, chgPct };
+  }).sort((a,b) => b.curr - a.curr);
+
+  const maxCurr = catData[0]?.curr || 1;
+
+  document.getElementById('aumCatTbody').innerHTML = catData.map((r, i) => {
+    const col = PALETTE[i % PALETTE.length];
+    const chgHtml = r.chg != null
+      ? '<span class="' + (r.chg >= 0 ? 'pos' : 'neg') + '">' + (r.chg >= 0 ? '+' : '') + fmtMoney(r.chg) + '</span>'
+      : '<span class="neu">—</span>';
+    const chgPctHtml = r.chgPct != null
+      ? '<span class="' + (r.chgPct >= 0 ? 'pos' : 'neg') + '">' + (r.chgPct >= 0 ? '+' : '') + r.chgPct.toFixed(2) + '%</span>'
+      : '<span class="neu">—</span>';
+    const bw = Math.max(2, r.curr / maxCurr * 60);
+    const shortCatName = r.cat.replace(' Peso Argentina',' ARS').replace(' Dolar Estadounidense Billete',' USD BLL').replace(' Dolar Estadounidense',' USD');
+    return '<tr>'
+      + '<td class="mono"><span class="rank-num">' + (i+1) + '</span></td>'
+      + '<td><span style="font-weight:500;">' + shortCatName + '</span>'
+      + '<div style="width:' + bw + 'px;height:3px;background:' + col + ';border-radius:2px;margin-top:3px;opacity:.6;"></div></td>'
+      + '<td class="mono r">' + fmtMoneyFull(r.curr) + '</td>'
+      + '<td class="mono r">' + (r.prev != null ? fmtMoneyFull(r.prev) : '<span class="neu">—</span>') + '</td>'
+      + '<td class="mono r">' + chgHtml + '</td>'
+      + '<td class="mono r">' + chgPctHtml + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
 document.addEventListener('click',e=>{
   if(!e.target.closest('#cmpSearch')&&!e.target.closest('#cmpDropdown')){
     const dd=document.getElementById('cmpDropdown');
@@ -1530,5 +1778,71 @@ function init() {
 </script>
 
 <div id="glosarioTip" class="glosario-tip" style="display:none;"></div>
+
+<!-- ═══════ TAB: AUM EVOLUTION ═══════ -->
+<div id="tab-aum" class="tab-pane">
+<div class="container">
+
+  <!-- KPI cards -->
+  <div class="kpi-grid" id="aumKpiGrid" style="margin-bottom:1.5rem;"></div>
+
+  <!-- Total AUM chart -->
+  <div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header">
+      <span class="panel-title">AUM Total del Mercado</span>
+      <span class="panel-badge" id="aumTotalBadge">— días de historial</span>
+    </div>
+    <div style="padding:1.5rem;position:relative;">
+      <canvas id="aumTotalChart" style="width:100%;display:block;"></canvas>
+      <div id="aumTotalEmpty" style="text-align:center;padding:60px 0;color:var(--muted);font-size:13px;">
+        📊 Cargando historial de patrimonios...
+      </div>
+    </div>
+  </div>
+
+  <!-- Category breakdown chart -->
+  <div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header">
+      <span class="panel-title">Evolución por Industria</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-size:10px;color:var(--muted);">Top categorías</span>
+        <select id="aumTopN" onchange="renderAumCatChart()" style="padding:4px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;">
+          <option value="5">Top 5</option>
+          <option value="8" selected>Top 8</option>
+          <option value="12">Top 12</option>
+        </select>
+      </div>
+    </div>
+    <div style="padding:1.5rem;position:relative;">
+      <canvas id="aumCatChart" style="width:100%;display:block;"></canvas>
+      <div id="aumCatEmpty" style="text-align:center;padding:60px 0;color:var(--muted);font-size:13px;">
+        Cargando...
+      </div>
+    </div>
+  </div>
+
+  <!-- Category table with change -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Variación de Patrimonio por Industria</span>
+      <span class="panel-badge">Último período disponible</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr>
+          <th>#</th><th>Categoría</th>
+          <th class="r">AUM Actual (M$)</th>
+          <th class="r">AUM Anterior (M$)</th>
+          <th class="r">Variación $</th>
+          <th class="r">Variación %</th>
+        </tr></thead>
+        <tbody id="aumCatTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
 </body>
 </html>
