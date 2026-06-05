@@ -142,6 +142,76 @@ def update_history(records, date_str, history_path):
         json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
     print(f"Historial: {len(funds_hist)} fondos, {updated} entradas nuevas ({os.path.getsize(history_path)//1024} KB)")
 
+def update_aum_history(records, date_str: str, aum_history_path: str):
+    """
+    Agrega el patrimonio diario agregado por categoría al historial.
+    Estructura: {
+      "dates": ["20260522", ...],
+      "total": [77698.5, ...],          # millones ARS
+      "categories": {
+        "Mercado de Dinero Peso Argentina": [48006.7, ...]
+      }
+    }
+    """
+    # Cargar historial existente
+    if os.path.exists(aum_history_path):
+        with open(aum_history_path, encoding='utf-8') as f:
+            history = json.load(f)
+    else:
+        history = {'dates': [], 'total': [], 'categories': {}}
+
+    # Si la fecha ya existe, actualizar (no duplicar)
+    if date_str in history['dates']:
+        idx = history['dates'].index(date_str)
+        update_existing = True
+    else:
+        idx = None
+        update_existing = False
+
+    # Calcular AUM por categoría
+    from collections import defaultdict
+    cat_aum = defaultdict(float)
+    total_aum = 0.0
+    for r in records:
+        if r.get('pat', 0) > 0:
+            cat_aum[r['cat']] += r['pat']
+            total_aum += r['pat']
+
+    if update_existing:
+        history['total'][idx] = round(total_aum, 2)
+        for cat, aum in cat_aum.items():
+            if cat not in history['categories']:
+                history['categories'][cat] = [None] * len(history['dates'])
+            history['categories'][cat][idx] = round(aum, 2)
+    else:
+        history['dates'].append(date_str)
+        history['total'].append(round(total_aum, 2))
+        n = len(history['dates'])
+        for cat in history['categories']:
+            history['categories'][cat].append(None)
+        for cat, aum in cat_aum.items():
+            if cat not in history['categories']:
+                history['categories'][cat] = [None] * (n - 1) + [round(aum, 2)]
+            else:
+                history['categories'][cat][-1] = round(aum, 2)
+
+    # Mantener últimos 500 días
+    MAX = 500
+    if len(history['dates']) > MAX:
+        history['dates'] = history['dates'][-MAX:]
+        history['total'] = history['total'][-MAX:]
+        for cat in history['categories']:
+            history['categories'][cat] = history['categories'][cat][-MAX:]
+
+    with open(aum_history_path, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, separators=(',', ':'))
+
+    size_kb = os.path.getsize(aum_history_path) / 1024
+    print(f"AUM History: {len(history['dates'])} días, {len(history['categories'])} categorías ({size_kb:.0f} KB)")
+    return history
+
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(1)
@@ -167,10 +237,12 @@ def main():
         file_date_obj = today.date()
         date_str      = today.strftime('%Y%m%d')
 
-    # Usar fecha VCP del Excel (más precisa que el nombre del archivo)
-    base_date = vcp_date or file_date_obj
-    file_date = f"{base_date.day:02d}/{base_date.month:02d}/{base_date.year}"
-    date_str  = base_date.strftime('%Y%m%d')
+    # Para display: usar fecha del ARCHIVO (ej: 02/06/2026 para el Excel del día)
+    # Para cálculos de días: usar fecha VCP del Excel (día hábil anterior)
+    base_date = vcp_date or file_date_obj   # para calcular días YTD/MTD
+    # fecha del display = fecha del archivo (no del VCP)
+    file_date = f"{file_date_obj.day:02d}/{file_date_obj.month:02d}/{file_date_obj.year}"
+    date_str  = file_date_obj.strftime('%Y%m%d')
 
     # Fallback referencias
     if not ref_ytd:
@@ -211,7 +283,11 @@ def main():
 
     history_path = os.path.join(out_dir, 'cafci_history.json')
     update_history(records, date_str, history_path)
+
+    aum_history_path = os.path.join(out_dir, 'cafci_aum_history.json')
+    update_aum_history(records, date_str, aum_history_path)
     print(f"Fecha: {file_date}")
 
 if __name__ == '__main__':
     main()
+
